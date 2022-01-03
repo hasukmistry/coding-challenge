@@ -63,66 +63,99 @@ class Block {
 	 * @return string The markup of the block.
 	 */
 	public function render_callback( $attributes, $content, $block ) {
-		$post_types = get_post_types(  [ 'public' => true ] );
-		$class_name = $attributes['className'];
-		ob_start();
+		$markup          = '';
+		$class_name      = ! empty( $attributes['className'] ) ? sanitize_html_class( esc_attr( $attributes['className'] ) ) : false;
+		$tag             = 'foo';
+		$category_name   = 'baz';
+		$post_types      = get_post_types( [ 'public' => true ], 'objects' );
+		$current_post_id = get_the_ID();
 
-		?>
-        <div class="<?php echo $class_name; ?>">
-			<h2>Post Counts</h2>
-			<ul>
-			<?php
-			foreach ( $post_types as $post_type_slug ) :
-                $post_type_object = get_post_type_object( $post_type_slug  );
-                $post_count = count(
-                    get_posts(
-						[
-							'post_type' => $post_type_slug,
-							'posts_per_page' => -1,
-						]
-					)
-                );
+		$markup .= sprintf( '<div %s>', $class_name ? "class='{$class_name}'" : '' );
 
-				?>
-				<li><?php echo 'There are ' . $post_count . ' ' .
-					  $post_type_object->labels->name . '.'; ?></li>
-			<?php endforeach;	?>
-			</ul><p><?php echo 'The current post ID is ' . $_GET['post_id'] . '.'; ?></p>
+		$markup .= '<h2>Post Counts</h2>';
 
-			<?php
-			$query = new WP_Query(  array(
-				'post_type' => ['post', 'page'],
-				'post_status' => 'any',
-				'date_query' => array(
-					array(
-						'hour'      => 9,
-						'compare'   => '>=',
-					),
-					array(
-						'hour' => 17,
-						'compare'=> '<=',
-					),
-				),
-                'tag'  => 'foo',
-                'category_name'  => 'baz',
-				  'post__not_in' => [ get_the_ID() ],
-			));
+		$markup .= '<ul>';
 
-			if ( $query->found_posts ) :
-				?>
-				 <h2>5 posts with the tag of foo and the category of baz</h2>
-                <ul>
-                <?php
+		foreach ( $post_types as $post_type_object ) :
+			$post_type_slug  = $post_type_object->name;
+			$post_type_label = $post_type_object->labels->name;
+			$post_count      = wp_count_posts( $post_type_slug );
 
-                 foreach ( array_slice( $query->posts, 0, 5 ) as $post ) :
-                    ?><li><?php echo $post->post_title ?></li><?php
-				endforeach;
+			$markup .= sprintf( '<li> There are %s %s.</li>', $post_count->publish, $post_type_label );
+		endforeach;
+
+		$markup .= '</ul>';
+
+		$markup .= sprintf( '<p>The current post ID is %s.</p>', $current_post_id );
+
+		$markup .= $this->get_filtered_posts( $current_post_id, $tag, $category_name );
+
+		$markup .= '<div>';
+
+		return $markup;
+	}
+
+	/**
+	 * Renders posts with matching tag and category. Also excludes given post_id.
+	 * Also cache the results.
+	 *
+	 * @param int    $post_id       The given post id.
+	 * @param string $tag           The tag associated with post, defaults to foo.
+	 * @param string $category_name The category associated with post, defaults to baz.
+	 * @return string The markup of the filtered post.
+	 */
+	private function get_filtered_posts( $post_id, $tag = 'foo', $category_name = 'baz' ) {
+		// Check for the filtered_posts key in the 'site_counts' group.
+		$filtered_posts_cached = wp_cache_get( 'filtered_posts', 'site_counts' );
+		$markup                = '';
+
+		// If nothing is found, build the object.
+		if ( false === $filtered_posts_cached ) {
+			$args  = [
+				'post_type'      => [ 'post', 'page' ],
+				'post_status'    => 'any',
+				'date_query'     => [
+					[
+						'hour'    => 9,
+						'compare' => '>=',
+					],
+					[
+						'hour'    => 17,
+						'compare' => '<=',
+					],
+				],
+				'tag'            => $tag,
+				'category_name'  => $category_name,
+				'posts_per_page' => 6, // 5 posts with the tag of foo and the category of baz. extra 1 for excluding current post.
+			];
+			$query = new \WP_Query( $args );
+
+			if ( $query->found_posts && ! is_wp_error( $query ) ) :
+				$filtered_posts = array_filter(
+					$query->posts,
+					function( $current_post ) use ( $post_id ) {
+						return $post_id !== $current_post->ID;
+					}
+				);
+
+				// Cache the whole WP_Query object in the cache and store it for 5 minutes (300 secs).
+				wp_cache_set( 'filtered_posts', $filtered_posts, 'site_counts', 5 * 60 );
+
+				// Retrieve cache value after setting.
+				$filtered_posts_cached = wp_cache_get( 'filtered_posts', 'site_counts' );
 			endif;
-		 	?>
-			</ul>
-		</div>
-		<?php
+		}
 
-		return ob_get_clean();
+		$markup .= sprintf( '<h2>%d posts with the tag of %s and the category of %s</h2>', $filtered_posts_cached, $tag, $category_name );
+
+		$markup .= '<ul>';
+
+		foreach ( $filtered_posts_cached as $post ) :
+			$markup .= sprintf( '<li>%s</li>', $post->ID );
+		endforeach;
+
+		$markup .= '</ul>';
+
+		return $markup;
 	}
 }
