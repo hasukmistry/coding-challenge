@@ -18,19 +18,19 @@
     "npm": ">=6.9"
   },
   "scripts": {
-    "postinstall": "composer install --ignore-platform-reqs",
+    "postinstall": "composer install",
     "dev": "wp-scripts start",
     "build": "wp-scripts build",
     "lint": "npm-run-all --parallel lint:*",
     "lint:js": "wp-scripts lint-js js/src",
-    "lint:php": "composer lint --ignore-platform-reqs",
+    "lint:php": "composer lint",
     "packages-update": "wp-scripts packages-update",
     "test": "npm-run-all --parallel test:js test:php",
     "test:coverage": "npm-run-all --parallel test:js:coverage test:php:coverage",
     "test:js": "wp-scripts test-unit-js",
     "test:js:coverage": "wp-scripts test-unit-js --coverage --coverageDirectory=tests/coverage/js",
-    "test:php": "composer test -- --no-coverage --ignore-platform-reqs",
-    "test:php:coverage": "composer test --ignore-platform-reqs"
+    "test:php": "composer test -- --no-coverage",
+    "test:php:coverage": "composer test"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "5.14.1",
