@@ -146,6 +146,10 @@ class Block {
 			endif;
 		}
 
+		if ( ! $filtered_posts_cached ) {
+			return $markup;
+		}
+
 		$markup .= sprintf( '<h2>%d posts with the tag of %s and the category of %s</h2>', $filtered_posts_cached, $tag, $category_name );
 
 		$markup .= '<ul>';
